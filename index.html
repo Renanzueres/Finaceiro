@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle Financeiro Mensal</title>
+    <link rel="stylesheet" href="assents/CSS/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Controle Financeiro</h1>
+        </header>
+
+        <main>
+            <section class="acoes-extras">
+                <button id="btn-fixos" class="btn-secundario">📥 Lançar Gastos Fixos do Mês</button>
+                <button id="btn-exportar" class="btn-secundario">📊 Exportar para Excel (CSV)</button>
+            </section>
+            <section class="form-section">
+                <h2>Nova Transação</h2>
+                <form id="form-transacao">
+                    <div class="form-row">
+                        <div class="input-group">
+                            <label for="tipo">Tipo</label>
+                            <select id="tipo" required>
+                                <option value="despesa" selected>Saída (Gasto)</option>
+                                <option value="receita">Entrada (Depósito)</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="data">Data</label>
+                            <input type="date" id="data" required>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="descricao">Descrição</label>
+                        <input type="text" id="descricao" placeholder="Ex: Salário, Passagem, Lanche..." required>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="input-group">
+                            <label for="valor">Valor (R$)</label>
+                            <input type="number" id="valor" step="0.01" placeholder="0,00" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="categoria">Categoria</label>
+                            <select id="categoria" required>
+                                <option value="" disabled selected>Selecione...</option>
+                                <option value="Depósito/Renda">Depósito / Renda</option>
+                                <option value="Lazer">Lazer</option>
+                                <option value="Comida">Comida</option>
+                                <option value="Transporte">Transporte</option>
+                                <option value="Educação">Educação</option>
+                                <option value="Investimento">Investimento</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="submit">Registrar Transação</button>
+                </form>
+            </section>
+
+            <section class="dashboard-section">
+                <div class="resumo">
+                    <div class="card receitas">
+                        <h3>Entradas</h3>
+                        <p id="total-receitas">R$ 0,00</p>
+                    </div>
+                    <div class="card despesas">
+                        <h3>Saídas</h3>
+                        <p id="total-gastos">R$ 0,00</p>
+                    </div>
+                    <div class="card saldo">
+                        <h3>Saldo Atual</h3>
+                        <p id="saldo-atual">R$ 0,00</p>
+                    </div>
+                </div>
+
+                <h2>Histórico do Mês</h2>
+                <ul id="lista-transacoes" class="lista-transacoes">
+                    </ul>
+            </section>
+        </main>
+    </div>
+
+    <script src="assents/JS/script.js"></script>
+</body>
+</html>
