@@ -1,0 +1,16 @@
+{
+    "name": "Meu Controle Financeiro",
+    "short_name": "Finanças",
+    "description": "Controle de gastos e receitas mensal",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#f4f7f6",
+    "theme_color": "#111111",
+    "icons": [
+        {
+            "src": "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

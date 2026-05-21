@@ -3,90 +3,192 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Controle Financeiro Mensal</title>
-    <link rel="stylesheet" href="assents/CSS/style.css">
+    <title>Controle Financeiro</title>
+    <link rel="stylesheet" href="assets/CSS/style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#111111">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Controle Financeiro</h1>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h1>Controle Financeiro</h1>
+                <button id="btn-theme-toggle" style="background: transparent; font-size: 1.5rem; padding: 0; box-shadow: none;" aria-label="Alternar Tema">🌙</button>
+            </div>
+            
+            <nav class="menu-navegacao">
+                <button class="btn-nav active" onclick="mudarAba('view-inicio')">🏠 Início</button>
+                <button class="btn-nav" onclick="mudarAba('view-historico')">🔍 Histórico</button>
+                <button class="btn-nav" onclick="mudarAba('view-config')">⚙️ Configurações</button>
+            </nav>
         </header>
 
         <main>
-            <section class="acoes-extras">
-                <button id="btn-fixos" class="btn-secundario">📥 Lançar Gastos Fixos do Mês</button>
-                <button id="btn-exportar" class="btn-secundario">📊 Exportar para Excel (CSV)</button>
-            </section>
-            <section class="form-section">
-                <h2>Nova Transação</h2>
-                <form id="form-transacao">
-                    <div class="form-row">
-                        <div class="input-group">
-                            <label for="tipo">Tipo</label>
-                            <select id="tipo" required>
-                                <option value="despesa" selected>Saída (Gasto)</option>
-                                <option value="receita">Entrada (Depósito)</option>
-                            </select>
+            <div id="view-inicio" class="view active">
+                <section class="dashboard-section">
+                    <div class="resumo">
+                        <div class="card receitas">
+                            <h3>Entradas</h3>
+                            <p id="total-receitas">R$ 0,00</p>
                         </div>
-
-                        <div class="input-group">
-                            <label for="data">Data</label>
-                            <input type="date" id="data" required>
+                        <div class="card despesas">
+                            <h3>Saídas</h3>
+                            <p id="total-gastos">R$ 0,00</p>
                         </div>
-                    </div>
-
-                    <div class="input-group">
-                        <label for="descricao">Descrição</label>
-                        <input type="text" id="descricao" placeholder="Ex: Salário, Passagem, Lanche..." required>
+                        <div class="card saldo">
+                            <h3>Saldo Atual</h3>
+                            <p id="saldo-atual">R$ 0,00</p>
+                        </div>
                     </div>
                     
+                    <div class="grafico-container">
+                        <canvas id="graficoDespesas"></canvas>
+                    </div>
+                </section>
+
+                <section class="orcamento-section" style="margin-bottom: 30px;">
+                    <h2>📊 Orçamento do Mês Atual</h2>
+                    <div id="lista-orcamentos" class="lista-orcamentos"></div>
+                </section>
+
+                <section class="form-section">
+                    <h2 id="titulo-formulario">Nova Transação</h2>
+                    <form id="form-transacao">
+                        <div class="form-row">
+                            <div class="input-group">
+                                <label for="tipo">Tipo</label>
+                                <select id="tipo" required>
+                                    <option value="despesa" selected>Saída (Gasto)</option>
+                                    <option value="receita">Entrada (Depósito)</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label for="data">Data</label>
+                                <input type="date" id="data" required>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="descricao">Descrição</label>
+                            <input type="text" id="descricao" placeholder="Ex: Salário, Passagem..." required>
+                        </div>
+                        <div class="form-row">
+                            <div class="input-group">
+                                <label for="valor">Valor (R$)</label>
+                                <input type="number" id="valor" step="0.01" placeholder="0,00" required>
+                            </div>
+                            <div class="input-group">
+                                <label for="categoria">Categoria</label>
+                                <select id="categoria" required>
+                                    <option value="" disabled selected>Selecione...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" id="btn-submit-transacao">Registrar Transação</button>
+                        <button type="button" id="btn-cancelar-edicao" style="display: none; background: #7f8c8d;">Cancelar Edição</button>
+                    </form>
+                </section>
+            </div>
+
+            <div id="view-historico" class="view">
+                <section class="filtros-avancados">
+                    <h2>🔍 Filtro de Buscas</h2>
                     <div class="form-row">
                         <div class="input-group">
-                            <label for="valor">Valor (R$)</label>
-                            <input type="number" id="valor" step="0.01" placeholder="0,00" required>
+                            <label>Data Início</label>
+                            <input type="date" id="filtro-data-inicio">
                         </div>
-
                         <div class="input-group">
-                            <label for="categoria">Categoria</label>
-                            <select id="categoria" required>
-                                <option value="" disabled selected>Selecione...</option>
-                                <option value="Depósito/Renda">Depósito / Renda</option>
-                                <option value="Lazer">Lazer</option>
-                                <option value="Comida">Comida</option>
-                                <option value="Transporte">Transporte</option>
-                                <option value="Educação">Educação</option>
-                                <option value="Investimento">Investimento</option>
+                            <label>Data Fim</label>
+                            <input type="date" id="filtro-data-fim">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="input-group">
+                            <label>Tipo</label>
+                            <select id="filtro-tipo">
+                                <option value="todos" selected>Todos</option>
+                                <option value="receita">Apenas Entradas</option>
+                                <option value="despesa">Apenas Saídas</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Categoria</label>
+                            <select id="filtro-categoria">
+                                <option value="todas" selected>Todas as Categorias</option>
                             </select>
                         </div>
                     </div>
-
-                    <button type="submit">Registrar Transação</button>
-                </form>
-            </section>
-
-            <section class="dashboard-section">
-                <div class="resumo">
-                    <div class="card receitas">
-                        <h3>Entradas</h3>
-                        <p id="total-receitas">R$ 0,00</p>
+                    <div class="input-group">
+                        <label>Buscar por Texto</label>
+                        <input type="text" id="filtro-texto" placeholder="Buscar por descrição ou valor...">
                     </div>
-                    <div class="card despesas">
-                        <h3>Saídas</h3>
-                        <p id="total-gastos">R$ 0,00</p>
-                    </div>
-                    <div class="card saldo">
-                        <h3>Saldo Atual</h3>
-                        <p id="saldo-atual">R$ 0,00</p>
-                    </div>
-                </div>
+                    <button class="btn-secundario" onclick="limparFiltros()">Limpar Filtros</button>
+                </section>
 
-                <h2>Histórico do Mês</h2>
-                <ul id="lista-transacoes" class="lista-transacoes">
-                    </ul>
-            </section>
+                <section class="historico-lista-section">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h2>Histórico de Transações</h2>
+                        <button id="btn-exportar" class="btn-secundario" style="margin: 0; padding: 8px 15px;">📊 Exportar CSV</button>
+                    </div>
+                    <ul id="lista-transacoes" class="lista-transacoes"></ul>
+                </section>
+            </div>
+
+            <div id="view-config" class="view">
+                <section class="config-section" style="border-top: none; padding-top: 0;">
+                    <h2>⚙️ Configurações do Sistema</h2>
+                    <div class="config-grid">
+                        
+                        <div class="config-box">
+                            <h3>Categorias Disponíveis</h3>
+                            <form id="form-config-categoria">
+                                <div class="input-inline">
+                                    <input type="text" id="nova-categoria" placeholder="Nova Categoria..." required>
+                                    <button type="submit">➕</button>
+                                </div>
+                            </form>
+                            <ul id="lista-config-categorias" class="config-lista-itens"></ul>
+                        </div>
+
+                        <div class="config-box">
+                            <h3>Teto de Gastos Mensal</h3>
+                            <form id="form-config-orcamento">
+                                <div class="form-row">
+                                    <select id="novo-orcamento-cat" required style="flex: 1;">
+                                        <option value="" disabled selected>Categoria...</option>
+                                    </select>
+                                    <input type="number" id="novo-orcamento-valor" step="0.01" placeholder="Limite (R$)" required style="flex: 1;">
+                                </div>
+                                <button type="submit">Definir Limite</button>
+                            </form>
+                            <ul id="lista-config-orcamentos" class="config-lista-itens"></ul>
+                        </div>
+
+                        <div class="config-box">
+                            <h3>Definição de Gastos Fixos</h3>
+                            <form id="form-config-fixo">
+                                <input type="text" id="novo-fixo-desc" placeholder="Ex: Aluguel" required>
+                                <div class="form-row">
+                                    <input type="number" id="novo-fixo-valor" step="0.01" placeholder="Valor (R$)" required>
+                                    <select id="novo-fixo-cat" required>
+                                        <option value="" disabled selected>Categoria...</option>
+                                    </select>
+                                </div>
+                                <button type="submit">Adicionar Gasto</button>
+                            </form>
+                            <ul id="lista-config-fixos" class="config-lista-itens"></ul>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 20px;">
+                        <button id="btn-fixos" class="btn-secundario" style="width: 100%;">📥 Lançar Todos os Gastos Fixos Agora</button>
+                    </div>
+                </section>
+            </div>
         </main>
     </div>
-
-    <script src="assents/JS/script.js"></script>
+    <div id="toast-container"></div>
+    <script src="assets/JS/script.js"></script>
 </body>
 </html>
