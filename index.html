@@ -6,21 +6,26 @@
     <title>Controle Financeiro</title>
     <link rel="stylesheet" href="assets/CSS/style.css">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#111111">
+    <link rel="icon" href="assets/icons/favicon.png" type="image/png">
+    <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+    <meta name="theme-color" content="#14303d">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
         <header>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h1>Controle Financeiro</h1>
-                <button id="btn-theme-toggle" style="background: transparent; font-size: 1.5rem; padding: 0; box-shadow: none;" aria-label="Alternar Tema">🌙</button>
+            <div class="header-top">
+                <div>
+                    <h1>Controle Financeiro</h1>
+                    <p class="header-sub">Seu extrato pessoal, sempre à mão</p>
+                </div>
+                <button id="btn-theme-toggle" class="btn-theme-toggle" type="button" aria-label="Alternar tema claro/escuro">🌙</button>
             </div>
-            
-            <nav class="menu-navegacao">
-                <button class="btn-nav active" onclick="mudarAba('view-inicio')">🏠 Início</button>
-                <button class="btn-nav" onclick="mudarAba('view-historico')">🔍 Histórico</button>
-                <button class="btn-nav" onclick="mudarAba('view-config')">⚙️ Configurações</button>
+
+            <nav class="menu-navegacao" aria-label="Navegação principal">
+                <button class="btn-nav active" type="button" data-view="view-inicio" onclick="mudarAba('view-inicio', this)">🏠 Início</button>
+                <button class="btn-nav" type="button" data-view="view-historico" onclick="mudarAba('view-historico', this)">🔍 Histórico</button>
+                <button class="btn-nav" type="button" data-view="view-config" onclick="mudarAba('view-config', this)">⚙️ Configurações</button>
             </nav>
         </header>
 
@@ -37,30 +42,30 @@
                             <p id="total-gastos">R$ 0,00</p>
                         </div>
                         <div class="card saldo">
-                            <h3>Saldo Atual</h3>
+                            <h3>Saldo atual</h3>
                             <p id="saldo-atual">R$ 0,00</p>
                         </div>
                     </div>
-                    
+
                     <div class="grafico-container">
-                        <canvas id="graficoDespesas"></canvas>
+                        <canvas id="graficoDespesas" role="img" aria-label="Gráfico de despesas por categoria"></canvas>
                     </div>
                 </section>
 
                 <section class="orcamento-section" style="margin-bottom: 30px;">
-                    <h2>📊 Orçamento do Mês Atual</h2>
+                    <h2>📊 Orçamento do mês atual</h2>
                     <div id="lista-orcamentos" class="lista-orcamentos"></div>
                 </section>
 
                 <section class="form-section">
-                    <h2 id="titulo-formulario">Nova Transação</h2>
+                    <h2 id="titulo-formulario">Nova transação</h2>
                     <form id="form-transacao">
                         <div class="form-row">
                             <div class="input-group">
                                 <label for="tipo">Tipo</label>
                                 <select id="tipo" required>
-                                    <option value="despesa" selected>Saída (Gasto)</option>
-                                    <option value="receita">Entrada (Depósito)</option>
+                                    <option value="despesa" selected>Saída (gasto)</option>
+                                    <option value="receita">Entrada (depósito)</option>
                                 </select>
                             </div>
                             <div class="input-group">
@@ -70,12 +75,12 @@
                         </div>
                         <div class="input-group">
                             <label for="descricao">Descrição</label>
-                            <input type="text" id="descricao" placeholder="Ex: Salário, Passagem..." required>
+                            <input type="text" id="descricao" placeholder="Ex: Salário, Passagem..." maxlength="80" required>
                         </div>
                         <div class="form-row">
                             <div class="input-group">
                                 <label for="valor">Valor (R$)</label>
-                                <input type="number" id="valor" step="0.01" placeholder="0,00" required>
+                                <input type="number" id="valor" step="0.01" min="0.01" placeholder="0,00" required>
                             </div>
                             <div class="input-group">
                                 <label for="categoria">Categoria</label>
@@ -84,52 +89,52 @@
                                 </select>
                             </div>
                         </div>
-                        <button type="submit" id="btn-submit-transacao">Registrar Transação</button>
-                        <button type="button" id="btn-cancelar-edicao" style="display: none; background: #7f8c8d;">Cancelar Edição</button>
+                        <button type="submit" id="btn-submit-transacao">Registrar transação</button>
+                        <button type="button" id="btn-cancelar-edicao" class="btn-secundario" style="display: none;">Cancelar edição</button>
                     </form>
                 </section>
             </div>
 
             <div id="view-historico" class="view">
                 <section class="filtros-avancados">
-                    <h2>🔍 Filtro de Buscas</h2>
+                    <h2>🔍 Filtro de buscas</h2>
                     <div class="form-row">
                         <div class="input-group">
-                            <label>Data Início</label>
+                            <label for="filtro-data-inicio">Data início</label>
                             <input type="date" id="filtro-data-inicio">
                         </div>
                         <div class="input-group">
-                            <label>Data Fim</label>
+                            <label for="filtro-data-fim">Data fim</label>
                             <input type="date" id="filtro-data-fim">
                         </div>
                     </div>
                     <div class="form-row">
                         <div class="input-group">
-                            <label>Tipo</label>
+                            <label for="filtro-tipo">Tipo</label>
                             <select id="filtro-tipo">
                                 <option value="todos" selected>Todos</option>
-                                <option value="receita">Apenas Entradas</option>
-                                <option value="despesa">Apenas Saídas</option>
+                                <option value="receita">Apenas entradas</option>
+                                <option value="despesa">Apenas saídas</option>
                             </select>
                         </div>
                         <div class="input-group">
-                            <label>Categoria</label>
+                            <label for="filtro-categoria">Categoria</label>
                             <select id="filtro-categoria">
-                                <option value="todas" selected>Todas as Categorias</option>
+                                <option value="todas" selected>Todas as categorias</option>
                             </select>
                         </div>
                     </div>
                     <div class="input-group">
-                        <label>Buscar por Texto</label>
+                        <label for="filtro-texto">Buscar por texto</label>
                         <input type="text" id="filtro-texto" placeholder="Buscar por descrição ou valor...">
                     </div>
-                    <button class="btn-secundario" onclick="limparFiltros()">Limpar Filtros</button>
+                    <button class="btn-secundario" type="button" onclick="limparFiltros()">Limpar filtros</button>
                 </section>
 
                 <section class="historico-lista-section">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                        <h2>Histórico de Transações</h2>
-                        <button id="btn-exportar" class="btn-secundario" style="margin: 0; padding: 8px 15px;">📊 Exportar CSV</button>
+                    <div class="historico-header">
+                        <h2 style="margin: 0;">Histórico de transações</h2>
+                        <button id="btn-exportar" class="btn-secundario" type="button" style="margin: 0; padding: 8px 15px; flex: none;">📊 Exportar CSV</button>
                     </div>
                     <ul id="lista-transacoes" class="lista-transacoes"></ul>
                 </section>
@@ -137,58 +142,58 @@
 
             <div id="view-config" class="view">
                 <section class="config-section" style="border-top: none; padding-top: 0;">
-                    <h2>⚙️ Configurações do Sistema</h2>
+                    <h2>⚙️ Configurações do sistema</h2>
                     <div class="config-grid">
-                        
+
                         <div class="config-box">
-                            <h3>Categorias Disponíveis</h3>
+                            <h3>Categorias disponíveis</h3>
                             <form id="form-config-categoria">
                                 <div class="input-inline">
-                                    <input type="text" id="nova-categoria" placeholder="Nova Categoria..." required>
-                                    <button type="submit">➕</button>
+                                    <input type="text" id="nova-categoria" aria-label="Nova categoria" placeholder="Nova categoria..." maxlength="40" required>
+                                    <button type="submit" aria-label="Adicionar categoria">➕</button>
                                 </div>
                             </form>
                             <ul id="lista-config-categorias" class="config-lista-itens"></ul>
                         </div>
 
                         <div class="config-box">
-                            <h3>Teto de Gastos Mensal</h3>
+                            <h3>Teto de gastos mensal</h3>
                             <form id="form-config-orcamento">
                                 <div class="form-row">
                                     <select id="novo-orcamento-cat" required style="flex: 1;">
                                         <option value="" disabled selected>Categoria...</option>
                                     </select>
-                                    <input type="number" id="novo-orcamento-valor" step="0.01" placeholder="Limite (R$)" required style="flex: 1;">
+                                    <input type="number" id="novo-orcamento-valor" step="0.01" min="0.01" placeholder="Limite (R$)" required style="flex: 1;">
                                 </div>
-                                <button type="submit">Definir Limite</button>
+                                <button type="submit">Definir limite</button>
                             </form>
                             <ul id="lista-config-orcamentos" class="config-lista-itens"></ul>
                         </div>
 
                         <div class="config-box">
-                            <h3>Definição de Gastos Fixos</h3>
+                            <h3>Definição de gastos fixos</h3>
                             <form id="form-config-fixo">
-                                <input type="text" id="novo-fixo-desc" placeholder="Ex: Aluguel" required>
+                                <input type="text" id="novo-fixo-desc" placeholder="Ex: Aluguel" maxlength="80" required>
                                 <div class="form-row">
-                                    <input type="number" id="novo-fixo-valor" step="0.01" placeholder="Valor (R$)" required>
+                                    <input type="number" id="novo-fixo-valor" step="0.01" min="0.01" placeholder="Valor (R$)" required>
                                     <select id="novo-fixo-cat" required>
                                         <option value="" disabled selected>Categoria...</option>
                                     </select>
                                 </div>
-                                <button type="submit">Adicionar Gasto</button>
+                                <button type="submit">Adicionar gasto</button>
                             </form>
                             <ul id="lista-config-fixos" class="config-lista-itens"></ul>
                         </div>
                     </div>
-                    
+
                     <div style="margin-top: 20px;">
-                        <button id="btn-fixos" class="btn-secundario" style="width: 100%;">📥 Lançar Todos os Gastos Fixos Agora</button>
+                        <button id="btn-fixos" class="btn-secundario" style="width: 100%;">📥 Lançar todos os gastos fixos agora</button>
                     </div>
                 </section>
             </div>
         </main>
     </div>
-    <div id="toast-container"></div>
+    <div id="toast-container" role="status" aria-live="polite"></div>
     <script src="assets/JS/script.js"></script>
 </body>
 </html>

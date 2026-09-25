@@ -9,11 +9,17 @@ let orcamentos = JSON.parse(localStorage.getItem('orcamentosFinanceiros')) || {}
 let graficoInstancia = null;
 let idTransacaoEmEdicao = null;
 
+// --- SEGURANÇA: escapar texto de usuário antes de inserir via innerHTML ---
+const escapeHTML = (str) => String(str ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[c]));
+
 // --- SISTEMA DE DARK MODE ---
 const btnThemeToggle = document.getElementById('btn-theme-toggle');
 let isDarkMode = localStorage.getItem('temaFinanceiro') === 'dark';
 
-Chart.defaults.color = isDarkMode ? '#e0e0e0' : '#333';
+const corTextoGrafico = () => isDarkMode ? '#e4e9e7' : '#1a2226';
+Chart.defaults.color = corTextoGrafico();
 
 const aplicarTema = (escuro) => {
     if (escuro) {
@@ -24,7 +30,7 @@ const aplicarTema = (escuro) => {
         btnThemeToggle.innerText = '🌙';
     }
     if (graficoInstancia) {
-        Chart.defaults.color = escuro ? '#e0e0e0' : '#333';
+        Chart.defaults.color = corTextoGrafico();
         graficoInstancia.update();
     }
 };
@@ -41,7 +47,9 @@ const mostrarToast = (mensagem, tipo = 'sucesso') => {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast ${tipo}`;
-    toast.innerHTML = `<span>${mensagem}</span>`;
+    const span = document.createElement('span');
+    span.textContent = mensagem;
+    toast.appendChild(span);
     container.appendChild(toast);
     setTimeout(() => { toast.remove(); }, 3000);
 };
@@ -58,7 +66,7 @@ const debounce = (func, delay) => {
 // --- UTILITÁRIOS E PERSISTÊNCIA ---
 const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
 const formatarData = (dataString) => {
-    if(!dataString) return '';
+    if (!dataString) return '';
     const [ano, mes, dia] = dataString.split('-');
     return `${dia}/${mes}/${ano}`;
 };
@@ -76,22 +84,27 @@ const salvarDados = () => {
 };
 
 // --- NAVEGAÇÃO SPA ---
-window.mudarAba = (abaId) => {
+// Corrigido: recebe o botão clicado como parâmetro em vez de depender do
+// objeto global `event`, que não existe quando a função é chamada
+// programaticamente (ex: a partir de prepararEdicao).
+window.mudarAba = (abaId, btnEl = null) => {
     document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
     document.querySelectorAll('.btn-nav').forEach(btn => btn.classList.remove('active'));
     document.getElementById(abaId).classList.add('active');
-    if (event && event.currentTarget.classList.contains('btn-nav')) {
-        event.currentTarget.classList.add('active');
-    }
-    if(abaId === 'view-inicio') atualizarDashboard();
+
+    const botaoAlvo = btnEl || document.querySelector(`.btn-nav[data-view="${abaId}"]`);
+    if (botaoAlvo) botaoAlvo.classList.add('active');
+
+    if (abaId === 'view-inicio') atualizarDashboard();
 };
 
 const sincronizarSelectsCategorias = () => {
     let optionsHTML = '<option value="" disabled selected>Selecione...</option>';
-    let optionsFiltroHTML = '<option value="todas" selected>Todas as Categorias</option>';
-    categorias.sort().forEach(cat => {
-        optionsHTML += `<option value="${cat}">${cat}</option>`;
-        optionsFiltroHTML += `<option value="${cat}">${cat}</option>`;
+    let optionsFiltroHTML = '<option value="todas" selected>Todas as categorias</option>';
+    [...categorias].sort().forEach(cat => {
+        const catSegura = escapeHTML(cat);
+        optionsHTML += `<option value="${catSegura}">${catSegura}</option>`;
+        optionsFiltroHTML += `<option value="${catSegura}">${catSegura}</option>`;
     });
     document.getElementById('categoria').innerHTML = optionsHTML;
     document.getElementById('novo-fixo-cat').innerHTML = optionsHTML;
@@ -113,27 +126,31 @@ const renderizarOrcamentosDashboard = () => {
 
     const mesAtual = new Date().toISOString().slice(0, 7);
     const gastosMesAtual = {};
-    
+
     transacoes.filter(t => t.tipo === 'despesa' && t.dataBruta.startsWith(mesAtual)).forEach(t => {
         gastosMesAtual[t.categoria] = (gastosMesAtual[t.categoria] || 0) + t.valor;
     });
 
     categoriasComOrcamento.forEach(cat => {
         const limite = orcamentos[cat];
-        const gasto = gastosMesAtual[cat] || 0;
-        let porcentagem = (gasto / limite) * 100;
-        
-        let corBarra = 'var(--cor-receita)'; 
-        if (porcentagem > 50) corBarra = '#f39c12'; 
-        if (porcentagem > 85) corBarra = 'var(--cor-despesa)'; 
+        // Guarda contra limite inválido (0, negativo ou não numérico) para evitar
+        // divisão por zero e valores "Infinity%"/"NaN%" na tela.
+        if (!(limite > 0)) return;
 
-        const larguraVisual = porcentagem > 100 ? 100 : porcentagem;
+        const gasto = gastosMesAtual[cat] || 0;
+        const porcentagem = (gasto / limite) * 100;
+
+        let corBarra = 'var(--cor-receita)';
+        if (porcentagem > 50) corBarra = 'var(--cor-destaque)';
+        if (porcentagem > 85) corBarra = 'var(--cor-despesa)';
+
+        const larguraVisual = Math.min(100, porcentagem);
 
         const div = document.createElement('div');
         div.className = 'orcamento-item';
         div.innerHTML = `
             <div class="orcamento-header">
-                <span>${cat}</span>
+                <span>${escapeHTML(cat)}</span>
                 <span>${formatarMoeda(gasto)} / ${formatarMoeda(limite)}</span>
             </div>
             <div class="progress-bar-bg">
@@ -148,11 +165,26 @@ const renderizarOrcamentosDashboard = () => {
     });
 };
 
+// --- PALETA DINÂMICA DO GRÁFICO ---
+// Começa com as cores da marca; se houver mais categorias do que cores fixas,
+// gera tons adicionais em HSL para nunca repetir/ficar sem cor.
+const PALETA_BASE = ['#c9a657', '#14303d', '#b8503f', '#2f8f5b', '#5c6b6e', '#7c9cae', '#8a5a44'];
+const gerarPaletaGrafico = (qtd) => {
+    const cores = [...PALETA_BASE];
+    let i = 0;
+    while (cores.length < qtd) {
+        const hue = (i * 47) % 360;
+        cores.push(`hsl(${hue}, 55%, 55%)`);
+        i++;
+    }
+    return cores.slice(0, qtd);
+};
+
 // --- DASHBOARD ---
 const atualizarDashboard = () => {
     const receitas = transacoes.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + t.valor, 0);
     const despesas = transacoes.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + t.valor, 0);
-    
+
     document.getElementById('total-receitas').innerText = formatarMoeda(receitas);
     document.getElementById('total-gastos').innerText = formatarMoeda(despesas);
     document.getElementById('saldo-atual').innerText = formatarMoeda(receitas - despesas);
@@ -166,16 +198,18 @@ const atualizarDashboard = () => {
 
     const labels = Object.keys(categoriasTotais);
     const valores = Object.values(categoriasTotais);
+    const cores = gerarPaletaGrafico(labels.length);
 
     if (graficoInstancia) {
         graficoInstancia.data.labels = labels;
         graficoInstancia.data.datasets[0].data = valores;
+        graficoInstancia.data.datasets[0].backgroundColor = cores;
         graficoInstancia.update();
     } else {
         const ctx = document.getElementById('graficoDespesas').getContext('2d');
         graficoInstancia = new Chart(ctx, {
             type: 'doughnut',
-            data: { labels: labels, datasets: [{ data: valores, backgroundColor: ['#e74c3c', '#9b59b6', '#3498db', '#f1c40f', '#e67e22', '#2ecc71', '#34495e'], borderWidth: 1 }] },
+            data: { labels: labels, datasets: [{ data: valores, backgroundColor: cores, borderWidth: 1 }] },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
         });
     }
@@ -184,14 +218,24 @@ const atualizarDashboard = () => {
 // --- FORMULÁRIO DE TRANSAÇÕES ---
 document.getElementById('form-transacao').addEventListener('submit', (e) => {
     e.preventDefault();
+
+    const valor = parseFloat(document.getElementById('valor').value);
+    if (!(valor > 0)) {
+        return mostrarToast("Informe um valor maior que zero.", "erro");
+    }
+
     const dados = {
         tipo: document.getElementById('tipo').value,
         dataBruta: document.getElementById('data').value,
         data: formatarData(document.getElementById('data').value),
-        descricao: document.getElementById('descricao').value,
-        valor: parseFloat(document.getElementById('valor').value),
+        descricao: document.getElementById('descricao').value.trim(),
+        valor: valor,
         categoria: document.getElementById('categoria').value
     };
+
+    if (!dados.descricao) {
+        return mostrarToast("Informe uma descrição.", "erro");
+    }
 
     if (idTransacaoEmEdicao) {
         transacoes = transacoes.map(t => t.id === idTransacaoEmEdicao ? { ...t, ...dados } : t);
@@ -212,12 +256,13 @@ window.prepararEdicao = (id) => {
     const t = transacoes.find(x => x.id === id);
     if (!t) return;
     idTransacaoEmEdicao = id;
-    mudarAba('view-inicio'); 
-    
-    document.getElementById('titulo-formulario').innerText = "✏️ Editando Transação";
+    mudarAba('view-inicio');
+
+    document.getElementById('titulo-formulario').innerText = "✏️ Editando transação";
     const btnSubmit = document.getElementById('btn-submit-transacao');
-    btnSubmit.innerText = "Salvar Alterações";
-    btnSubmit.style.background = "#e67e22";
+    btnSubmit.innerText = "Salvar alterações";
+    btnSubmit.style.background = "var(--cor-destaque)";
+    btnSubmit.style.color = "#1a1204";
     document.getElementById('btn-cancelar-edicao').style.display = "inline-block";
 
     document.getElementById('tipo').value = t.tipo;
@@ -229,18 +274,19 @@ window.prepararEdicao = (id) => {
 
 const fecharModoEdicao = () => {
     idTransacaoEmEdicao = null;
-    document.getElementById('titulo-formulario').innerText = "Nova Transação";
+    document.getElementById('titulo-formulario').innerText = "Nova transação";
     const btnSubmit = document.getElementById('btn-submit-transacao');
-    btnSubmit.innerText = "Registrar Transação";
-    btnSubmit.style.background = "var(--cor-primaria)";
+    btnSubmit.innerText = "Registrar transação";
+    btnSubmit.style.background = "";
+    btnSubmit.style.color = "";
     document.getElementById('btn-cancelar-edicao').style.display = "none";
     document.getElementById('form-transacao').reset();
 };
 document.getElementById('btn-cancelar-edicao').addEventListener('click', fecharModoEdicao);
 
 window.removerTransacao = (id) => {
-    if(confirm("Tem certeza que deseja excluir esta transação?")) {
-        if(id === idTransacaoEmEdicao) fecharModoEdicao();
+    if (confirm("Tem certeza que deseja excluir esta transação?")) {
+        if (id === idTransacaoEmEdicao) fecharModoEdicao();
         transacoes = transacoes.filter(t => t.id !== id);
         salvarDados();
         atualizarDashboard();
@@ -262,8 +308,8 @@ const obterTransacoesFiltradas = () => {
         const matchTipo = tipo === 'todos' || t.tipo === tipo;
         const matchCat = categoria === 'todas' || t.categoria === categoria;
         let matchData = true;
-        if (dataInicio && dataFim) { matchData = t.dataBruta >= dataInicio && t.dataBruta <= dataFim; } 
-        else if (dataInicio) { matchData = t.dataBruta >= dataInicio; } 
+        if (dataInicio && dataFim) { matchData = t.dataBruta >= dataInicio && t.dataBruta <= dataFim; }
+        else if (dataInicio) { matchData = t.dataBruta >= dataInicio; }
         else if (dataFim) { matchData = t.dataBruta <= dataFim; }
         return matchTexto && matchTipo && matchCat && matchData;
     }).sort((a, b) => new Date(b.dataBruta) - new Date(a.dataBruta));
@@ -286,23 +332,35 @@ const renderizarHistorico = () => {
     transacoesFiltradas.forEach(t => {
         const li = document.createElement('li');
         li.className = `transacao-item tipo-${t.tipo}`;
+        li.dataset.id = t.id;
         const sinal = t.tipo === 'receita' ? '+' : '-';
         const classeValor = t.tipo === 'receita' ? 'valor-receita' : 'valor-despesa';
 
         li.innerHTML = `
             <div class="transacao-info">
-                <span><strong>${t.descricao}</strong></span>
-                <span class="transacao-data-cat">${t.data} • ${t.categoria}</span>
+                <span><strong>${escapeHTML(t.descricao)}</strong></span>
+                <span class="transacao-data-cat">${escapeHTML(t.data)} • ${escapeHTML(t.categoria)}</span>
             </div>
             <div class="transacao-valor-container">
                 <span class="transacao-valor ${classeValor}">${sinal} ${formatarMoeda(t.valor)}</span>
-                <button class="btn-acao-item btn-editar-item" onclick="prepararEdicao('${t.id}')">✏️</button>
-                <button class="btn-acao-item btn-remover-item" onclick="removerTransacao('${t.id}')">X</button>
+                <button class="btn-acao-item btn-editar-item" data-acao="editar" aria-label="Editar transação">✏️</button>
+                <button class="btn-acao-item btn-remover-item" data-acao="remover" aria-label="Remover transação">✕</button>
             </div>
         `;
         lista.appendChild(li);
     });
 };
+
+// Delegação de eventos: evita reconstruir onclick="...(${id})" no HTML
+// (fonte de injeção quando o valor tem aspas) e evita religar listeners a cada render.
+document.getElementById('lista-transacoes').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-acao]');
+    if (!btn) return;
+    const id = btn.closest('.transacao-item')?.dataset.id;
+    if (!id) return;
+    if (btn.dataset.acao === 'editar') prepararEdicao(id);
+    if (btn.dataset.acao === 'remover') removerTransacao(id);
+});
 
 window.limparFiltros = () => {
     document.getElementById('filtro-texto').value = '';
@@ -314,24 +372,36 @@ window.limparFiltros = () => {
 };
 
 document.getElementById('filtro-texto').addEventListener('input', debounce(renderizarHistorico, 300));
-['filtro-data-inicio', 'filtro-data-fim', 'filtro-tipo', 'filtro-categoria'].forEach(id => {
+['filtro-data-inicio', 'filtro-data-fim'].forEach(id => {
     document.getElementById(id).addEventListener('input', renderizarHistorico);
+});
+['filtro-tipo', 'filtro-categoria'].forEach(id => {
+    document.getElementById(id).addEventListener('change', renderizarHistorico);
 });
 
 // --- EXPORTAÇÃO CSV ---
+const escaparCampoCSV = (valor) => `"${String(valor).replace(/"/g, '""')}"`;
+
 document.getElementById('btn-exportar').addEventListener('click', () => {
     const transacoesParaExportar = obterTransacoesFiltradas();
     if (transacoesParaExportar.length === 0) return mostrarToast("Não há dados para exportar.", "erro");
 
     let csvContent = "\uFEFFID,Tipo,Data,Descricao,Categoria,Valor\n";
     transacoesParaExportar.forEach(t => {
-        csvContent += `${t.id},${t.tipo},${t.dataBruta},"${t.descricao}",${t.categoria},${t.valor}\n`;
+        csvContent += [
+            escaparCampoCSV(t.id),
+            escaparCampoCSV(t.tipo),
+            escaparCampoCSV(t.dataBruta),
+            escaparCampoCSV(t.descricao),
+            escaparCampoCSV(t.categoria),
+            escaparCampoCSV(t.valor)
+        ].join(',') + '\n';
     });
 
     const dtInicio = document.getElementById('filtro-data-inicio').value;
     const dtFim = document.getElementById('filtro-data-fim').value;
     let nomeArquivo = dtInicio || dtFim ? `extrato_${dtInicio || 'inicio'}_ate_${dtFim || 'hoje'}.csv` : "historico_financeiro.csv";
-    
+
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }));
     link.download = nomeArquivo;
@@ -344,29 +414,50 @@ const renderizarConfiguracoes = () => {
     const listaCat = document.getElementById('lista-config-categorias');
     listaCat.innerHTML = '';
     categorias.forEach(cat => {
-        listaCat.innerHTML += `<li><span>${cat}</span><button class="btn-acao-item btn-remover-item" onclick="removerCategoria('${cat}')">X</button></li>`;
+        listaCat.innerHTML += `<li data-cat="${escapeHTML(cat)}"><span>${escapeHTML(cat)}</span><button class="btn-acao-item btn-remover-item" data-acao="remover-categoria" aria-label="Remover categoria ${escapeHTML(cat)}">✕</button></li>`;
     });
 
     const listaFixos = document.getElementById('lista-config-fixos');
     listaFixos.innerHTML = '';
     gastosFixos.forEach(gasto => {
-        listaFixos.innerHTML += `<li><span><strong>${gasto.descricao}</strong> - ${formatarMoeda(gasto.valor)}</span><button class="btn-acao-item btn-remover-item" onclick="removerGastoFixo('${gasto.id}')">X</button></li>`;
+        listaFixos.innerHTML += `<li data-id="${gasto.id}"><span><strong>${escapeHTML(gasto.descricao)}</strong> — ${formatarMoeda(gasto.valor)}</span><button class="btn-acao-item btn-remover-item" data-acao="remover-fixo" aria-label="Remover gasto fixo ${escapeHTML(gasto.descricao)}">✕</button></li>`;
     });
 
     const listaOrc = document.getElementById('lista-config-orcamentos');
     listaOrc.innerHTML = '';
     Object.keys(orcamentos).forEach(cat => {
         listaOrc.innerHTML += `
-            <li>
-                <span><strong>${cat}</strong>: Limite de ${formatarMoeda(orcamentos[cat])}</span>
-                <button class="btn-acao-item btn-remover-item" onclick="removerOrcamento('${cat}')">X</button>
+            <li data-cat="${escapeHTML(cat)}">
+                <span><strong>${escapeHTML(cat)}</strong>: limite de ${formatarMoeda(orcamentos[cat])}</span>
+                <button class="btn-acao-item btn-remover-item" data-acao="remover-orcamento" aria-label="Remover orçamento de ${escapeHTML(cat)}">✕</button>
             </li>`;
     });
 };
 
+// Delegação de eventos das três listas de configuração
+document.getElementById('lista-config-categorias').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-acao="remover-categoria"]');
+    if (!btn) return;
+    const cat = btn.closest('li')?.dataset.cat;
+    if (cat) removerCategoria(cat);
+});
+document.getElementById('lista-config-fixos').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-acao="remover-fixo"]');
+    if (!btn) return;
+    const id = btn.closest('li')?.dataset.id;
+    if (id) removerGastoFixo(id);
+});
+document.getElementById('lista-config-orcamentos').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-acao="remover-orcamento"]');
+    if (!btn) return;
+    const cat = btn.closest('li')?.dataset.cat;
+    if (cat) removerOrcamento(cat);
+});
+
 document.getElementById('form-config-categoria').addEventListener('submit', (e) => {
     e.preventDefault();
     const novaCat = document.getElementById('nova-categoria').value.trim();
+    if (!novaCat) return;
     if (categorias.map(c => c.toLowerCase()).includes(novaCat.toLowerCase())) {
         return mostrarToast("Esta categoria já existe.", "erro");
     }
@@ -376,21 +467,35 @@ document.getElementById('form-config-categoria').addEventListener('submit', (e) 
     mostrarToast("Categoria adicionada!");
 });
 
+// Corrigido: remover uma categoria agora limpa o orçamento associado a ela
+// (evitando um orçamento "órfão" apontando para uma categoria inexistente) e
+// bloqueia a remoção se algum gasto fixo ainda usa essa categoria, para o
+// usuário não perder a referência sem perceber.
 window.removerCategoria = (cat) => {
     if (categorias.length <= 1) return mostrarToast("Mantenha ao menos uma categoria.", "erro");
-    if (confirm(`Remover a categoria "${cat}"?`)) {
+
+    const emUsoPorFixo = gastosFixos.some(g => g.categoria === cat);
+    if (emUsoPorFixo) {
+        return mostrarToast(`Remova ou reatribua os gastos fixos da categoria "${cat}" antes de excluí-la.`, "erro");
+    }
+
+    if (confirm(`Remover a categoria "${cat}"? Transações antigas continuarão no histórico, mas o orçamento definido para ela (se houver) será removido.`)) {
         categorias = categorias.filter(c => c !== cat);
-        salvarDados(); sincronizarSelectsCategorias(); renderizarConfiguracoes();
+        if (orcamentos[cat] !== undefined) delete orcamentos[cat];
+        salvarDados(); sincronizarSelectsCategorias(); renderizarConfiguracoes(); atualizarDashboard();
         mostrarToast("Categoria removida.", "aviso");
     }
 };
 
 document.getElementById('form-config-fixo').addEventListener('submit', (e) => {
     e.preventDefault();
+    const valor = parseFloat(document.getElementById('novo-fixo-valor').value);
+    if (!(valor > 0)) return mostrarToast("Informe um valor maior que zero.", "erro");
+
     gastosFixos.push({
         id: crypto.randomUUID(),
         descricao: document.getElementById('novo-fixo-desc').value.trim(),
-        valor: parseFloat(document.getElementById('novo-fixo-valor').value),
+        valor: valor,
         categoria: document.getElementById('novo-fixo-cat').value
     });
     salvarDados(); renderizarConfiguracoes();
@@ -409,7 +514,9 @@ document.getElementById('form-config-orcamento').addEventListener('submit', (e) 
     e.preventDefault();
     const cat = document.getElementById('novo-orcamento-cat').value;
     const limite = parseFloat(document.getElementById('novo-orcamento-valor').value);
-    
+
+    if (!(limite > 0)) return mostrarToast("Informe um limite maior que zero.", "erro");
+
     orcamentos[cat] = limite;
     salvarDados();
     renderizarConfiguracoes();
@@ -426,10 +533,19 @@ window.removerOrcamento = (cat) => {
     mostrarToast("Orçamento removido.", "aviso");
 };
 
+// Corrigido: evita lançar os gastos fixos duas vezes no mesmo dia por engano
+// (ex: duplo clique) sem que o usuário perceba a duplicação de despesas.
 document.getElementById('btn-fixos').addEventListener('click', () => {
-    if(gastosFixos.length === 0) return mostrarToast("Nenhum gasto configurado.", "erro");
-    
-    const dataAtual = new Date().toISOString().split('T')[0]; 
+    if (gastosFixos.length === 0) return mostrarToast("Nenhum gasto configurado.", "erro");
+
+    const dataAtual = new Date().toISOString().split('T')[0];
+    const ultimoLancamento = localStorage.getItem('ultimoLancamentoFixosData');
+
+    if (ultimoLancamento === dataAtual) {
+        const continuar = confirm("Os gastos fixos já foram lançados hoje. Lançar novamente vai duplicar essas despesas. Deseja continuar mesmo assim?");
+        if (!continuar) return;
+    }
+
     gastosFixos.forEach(gasto => {
         transacoes.push({
             id: crypto.randomUUID(), tipo: 'despesa', dataBruta: dataAtual,
@@ -437,6 +553,7 @@ document.getElementById('btn-fixos').addEventListener('click', () => {
             valor: gasto.valor, categoria: gasto.categoria
         });
     });
+    localStorage.setItem('ultimoLancamentoFixosData', dataAtual);
     salvarDados(); atualizarDashboard(); renderizarHistorico();
     mostrarToast("Gastos fixos lançados!");
     mudarAba('view-inicio');
